@@ -35,9 +35,8 @@ int main(){
   	//memset(&SDRAM_BASE,0,0x2000);
   	bzero(&SDRAM_BASE,0x2000);
   	SDRAM_BASE=0x12345678;
-  	//  MEM_CFG3 = 0x000ff000; 
 	//printf("wRTAddr:%d 	wSubAddr: %d\n",wRTAddr,wSubAddr);
-	proc_main_task(recv_data_from_RT,send_data2RT,exec_task);       //执行任务
+	//proc_main_task(recv_data_from_RT,send_data2RT,exec_task);       //执行任务
 	//func_BC_RT(wRTAddr,wSubAddr_bc2rt);
 	/*while(1){
 		  m_sleep();

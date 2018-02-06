@@ -169,7 +169,7 @@ while(1){
        count++;
     }
    // printf("count : %d\n",count);
-    //if(count==6)break;
+    if(count==6)break;
     if(count >= flag_break) break; 
 } 
 return 1;
