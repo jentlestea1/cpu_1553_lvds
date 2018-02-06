@@ -76,7 +76,7 @@ void append_data2sdram(char*buf,int data_size){   //buf为挂载的写数据流�
     char* p_tmp=(char*)&tmp;
 	int i=0;
     int count=data_size%4==0?(data_size/4):(data_size/4+1);
-    unsigned char addr = 0x8000000;
+    unsigned int addr = 0x8000000;
     //每次写四个字节
     for(;i<count;i++){
         int j=0;
@@ -87,9 +87,10 @@ void append_data2sdram(char*buf,int data_size){   //buf为挂载的写数据流�
      addr+=4;//每次写四个字节
     }
 }
-void lvds_send_data_back(char*buf,int data_size){
+int lvds_send_data_back(char*buf,unsigned int data_size){
     append_data2sdram(buf,data_size);
     read_data_sdram2outfifo(data_size);
+    return 1;
 }
 void get_data_from_sdram(char*buf,int data_size){
 	SDRAM_DBS = 0x00000000; //数据总线由cpu接到sdram
@@ -98,7 +99,7 @@ void get_data_from_sdram(char*buf,int data_size){
 	int i=0;
     int channel=1;
     int count=data_size%4==0?(data_size/4):(data_size/4+1);
-    addr = 0x02000000*(channel-1);//channel默认为1
+    unsigned int addr = 0x02000000*(channel-1);//channel默认为1
     for(;i<count;i++){
 	    tmp = *(volatile unsigned int *)(sdram_addr_base+ addr);
         int j=0;
@@ -108,9 +109,10 @@ void get_data_from_sdram(char*buf,int data_size){
         addr+=4;//每次写四个字节
     }
 }
-void lvds_get_data(char*buf,int data_size){
+int lvds_get_data(char*buf,unsigned int data_size){
     write_data2sdram(data_size ,1);
     get_data_from_sdram(buf,data_size);
+    return 1;
 }
 unsigned int read_data_sdram2outfifo(unsigned int data_size){
     unsigned int count=0;
@@ -149,7 +151,7 @@ unsigned int write_data2sdram(unsigned int data_size ,unsigned int channel ){
   unsigned int fifo_usewd;
   unsigned int addr ;
   unsigned int flag_break;
-  flag_break = data_size%/1024==0?data_size/1024:(data_size/1024+1);
+  flag_break = data_size%1024==0?data_size/1024:(data_size/1024+1);
   CLVDS_INR  = 0x0000000f; 
   //CLVDS_OUTR = 0x00000000 | SET_lvds_out_en; 
   //sdram data configure

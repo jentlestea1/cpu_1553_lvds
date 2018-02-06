@@ -24,7 +24,7 @@ void set_syspayload(float* syspayload_t,int len){
 }
 void set_proc_gra_result(int task_type,short curstate,short cores,int time,double result){
 	switch(task_type){
-		case:1
+        case 1 : 
 		{
 		    proc_gra_yp.curstate=curstate;
 		    proc_gra_yp.cores=cores;
@@ -32,7 +32,7 @@ void set_proc_gra_result(int task_type,short curstate,short cores,int time,doubl
 		    proc_gra_yp.result=result;
 		    break;
 		}
-		case:2
+        case 2 :
 		{
 		    proc_gra_pj.curstate=curstate;
 		    proc_gra_pj.cores=cores;
@@ -40,9 +40,9 @@ void set_proc_gra_result(int task_type,short curstate,short cores,int time,doubl
 		    proc_gra_pj.result=result;
 		    break;
 		}
-		case:3
+        case 3 :
 		{
-	            proc_gra_ys.curstate=curstate;
+	        proc_gra_ys.curstate=curstate;
 		    proc_gra_ys.cores=cores;
 		    proc_gra_ys.time=time;
 		    proc_gra_ys.result=result;
@@ -213,7 +213,7 @@ void serial_command_packet(unsigned char* dst,void* packet,void* task,int type,i
 		else if(type==RESULT_TYPE){
 		    task_result* p_t_res=(task_result*)task;
 		   
-		    p->head.size=sizeof(task_result)+sizeof(int)+5*sizeof(float);
+		    p->head.size=sizeof(task_result)+sizeof(int)+5*sizeof(float);  
 	            unsigned char* p_tmp;
 		    memcpy((unsigned char*)p_t_res,&task_result_t,sizeof(task_result));
 			/*for(;i<sizeof(int);i++){

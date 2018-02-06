@@ -3,11 +3,12 @@
 #define RECV_BUF_MAX_SIZE 0x10000 //一张图片最多只能有64k
 #define SEND_BUF_MAX_SIZE 0x20000 //回传一张图片最多只能有128k
 #define RECV_PIC_MAX_NUM 0x4
-static int task=PROC_IDE;
+static int g_task=PROC_IDE;
 short RT2BC_buf[33]={0};
 short BC2RT_buf[33]={0};
 unsigned char recv_buf[RECV_PIC_MAX_NUM][RECV_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
 unsigned char send_buf[SEND_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
+unsigned int ret_pic_size=0;
 
 struct current_task{
     //每个任务需要用到的几个变量
@@ -16,11 +17,13 @@ struct current_task{
     unsigned int picture_size[RECV_PIC_MAX_NUM];
     unsigned char* pic_src_addr;
     unsigned char* pic_dst_addr;
-}proc_current_task;
-
+};
+struct current_task proc_current_task;
 //设置task的图片源地址，目的地址
-proc_current_task.pic_src_addr=recv_buf;
-proc_current_task.pic_dst_addr=send_buf;
+//
+void set_result_pic_size(unsigned int size){
+    ret_pic_size=size;
+}
 void clear_recv_buf(){
     int i=0;
     for(;i<RECV_PIC_MAX_NUM;i++){
@@ -33,43 +36,33 @@ void clear_send_buf(){
 
 void set_current_task(int task_type,int pic_num_t,unsigned int* pic_size_t){
     clear_send_buf();
-    switch(task_type){
-        case:1{
-            proc_request_task.proc_task=proc_img_judge;
-        }
-        case:2{
-            proc_request_task.proc_task=pro_img_stitching;
-        }
-        case:3{
-            proc_request_task.proc_task=proc_img_compress;
-        }
-        default:
-             break;
-    }
-    proc_request_task.pic_num=pic_num_t;
+    proc_current_task.pic_src_addr=(unsigned char*)recv_buf[0];
+    proc_current_task.pic_dst_addr=(unsigned char*)send_buf;
+    proc_current_task.proc_task=(task)task_type;
+    proc_current_task.pic_num=pic_num_t;
     int i=0;
     for(;i<pic_num_t;i++){
-        proc_request_task.picture_size[i]=*(pic_size_t+i);
+        proc_current_task.picture_size[i]=*(pic_size_t+i);
     }
 }
 task get_current_task_type(){
-    return proc_request_task.proc_task;
+    return proc_current_task.proc_task;
 }
 unsigned int get_current_pic_num(){
-    return proc_request_task.pic_num;
+    return proc_current_task.pic_num;
 }
 
 unsigned int get_current_pic_size(int pic_id){
-    if(pic_id>4||pic_id<0||pic_id>=proc_request_task.pic_num)return 0;
-    return proc_request_task.picture_size[pic_id];
+    if(pic_id>4||pic_id<0||pic_id>=proc_current_task.pic_num)return 0;
+    return proc_current_task.picture_size[pic_id];
 }
 
 char* get_current_pic_src_addr(){
-    return proc_request_task.pic_src_addr;
+    return proc_current_task.pic_src_addr;
 }
 
 char* get_current_pic_dst_addr(){
-    return proc_request_task.pic_dst_addr;
+    return proc_current_task.pic_dst_addr;
 }
 
 void clear_RT2BC_buf(){
@@ -226,7 +219,7 @@ void proc_interact_task(int task_type,unsigned char cores,int(*recv_func)(),int 
         	//开启lvds传输图片任务代码段,传入cores和pic_size
             int j=0;
             for(;j<picture_num;j++){
-        	    int is_lvds_recv_right=lvds_get_data(pic_size[j],recv_buf[j]);
+        	    int is_lvds_recv_right=lvds_get_data(recv_buf[j],pic_size[j]);
         	    if(is_lvds_recv_right==1){
         			//回传分析的结果
                     printf("接收到了正确的图片数据,图片编号：%d\n",j+1);
@@ -244,13 +237,17 @@ void proc_interact_task(int task_type,unsigned char cores,int(*recv_func)(),int 
             ////////////////////////////////////////////
         }
 }
-int exec_task(int (*exec_task_func)()){
+int do_exec_task(int (*exec_task_func)()){
         exec_task_func();   
 }
 void proc_result_task(int task_type,unsigned char cores,int (*send_func)()){
 			clear_BC2RT_buf();
+	        command_packet packet;
+		    task_request task;
+		    memset(&packet,0,sizeof(command_packet));
+		    memset(&task,0,sizeof(task_request));
 			serial_command_packet((unsigned char*)BC2RT_buf,(void*)&packet,(void*)&task,RESULT_TYPE,task_type,cores,0);
-			is_send_right=(*send_func)(1,2,(unsigned char*)BC2RT_buf,32);
+			int is_send_right=(*send_func)(1,2,(unsigned char*)BC2RT_buf,32);
 			if(is_send_right==1){
 					printf("send result success,task type:%d\n",task_type);
 			}
@@ -258,6 +255,14 @@ void proc_result_task(int task_type,unsigned char cores,int (*send_func)()){
 					printf("send result fail,task type:%d\n",task_type);
 			}
             //清空收图片缓存区
+
+        	int is_lvds_send_right=lvds_send_data_back(send_buf,ret_pic_size);
+        	if(is_lvds_send_right==1){
+        			//回传分析的结果
+                printf("已传回结果图片\n");
+        	}
+	    	else
+        		printf("传输处理后的图片时出现错误\n");
             clear_recv_buf();
 }
 void proc_main_task(int (*recv_func)(), int (*send_func)(),int (*exec_task_func)()){
@@ -268,7 +273,7 @@ void proc_main_task(int (*recv_func)(), int (*send_func)(),int (*exec_task_func)
 			printf("prepare to send %d request\n",cycle);
 	  		proc_request_task(task_type,4,1,send_func);
 	  		proc_interact_task(task_type,4,recv_func,send_func);
-            if(exec_task(exec_task_func)==1){
+            if(do_exec_task(exec_task_func)==1){
 	  		    proc_result_task(task_type,4,send_func);
             }
 	  	    cycle--;
@@ -276,4 +281,7 @@ void proc_main_task(int (*recv_func)(), int (*send_func)(),int (*exec_task_func)
 			m_sleep();
 	  }
 	  
+
+
 }
+
