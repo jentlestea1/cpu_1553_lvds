@@ -1,8 +1,76 @@
 #include "do_frame.h"
+#include "../lvds/lvds.h"
+#define RECV_BUF_MAX_SIZE 0x10000 //一张图片最多只能有64k
+#define SEND_BUF_MAX_SIZE 0x20000 //回传一张图片最多只能有128k
+#define RECV_PIC_MAX_NUM 0x4
 static int task=PROC_IDE;
 short RT2BC_buf[33]={0};
 short BC2RT_buf[33]={0};
+unsigned char recv_buf[RECV_PIC_MAX_NUM][RECV_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
+unsigned char send_buf[SEND_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
 
+struct current_task{
+    //每个任务需要用到的几个变量
+    task proc_task;
+    unsigned int pic_num;
+    unsigned int picture_size[RECV_PIC_MAX_NUM];
+    unsigned char* pic_src_addr;
+    unsigned char* pic_dst_addr;
+}proc_current_task;
+
+//设置task的图片源地址，目的地址
+proc_current_task.pic_src_addr=recv_buf;
+proc_current_task.pic_dst_addr=send_buf;
+void clear_recv_buf(){
+    int i=0;
+    for(;i<RECV_PIC_MAX_NUM;i++){
+        memset(recv_buf[i],0,RECV_BUF_MAX_SIZE);
+    }
+}
+void clear_send_buf(){
+    memset(send_buf,0,SEND_BUF_MAX_SIZE);
+}
+
+void set_current_task(int task_type,int pic_num_t,unsigned int* pic_size_t){
+    clear_send_buf();
+    switch(task_type){
+        case:1{
+            proc_request_task.proc_task=proc_img_judge;
+        }
+        case:2{
+            proc_request_task.proc_task=pro_img_stitching;
+        }
+        case:3{
+            proc_request_task.proc_task=proc_img_compress;
+        }
+        default:
+             break;
+    }
+    proc_request_task.pic_num=pic_num_t;
+    int i=0;
+    for(;i<pic_num_t;i++){
+        proc_request_task.picture_size[i]=*(pic_size_t+i);
+    }
+}
+task get_current_task_type(){
+    return proc_request_task.proc_task;
+}
+unsigned int get_current_pic_num(){
+    return proc_request_task.pic_num;
+}
+
+unsigned int get_current_pic_size(int pic_id){
+    if(pic_id>4||pic_id<0||pic_id>=proc_request_task.pic_num)return 0;
+    return proc_request_task.picture_size[pic_id];
+}
+
+char* get_current_pic_src_addr(){
+    return proc_request_task.pic_src_addr;
+}
+
+char* get_current_pic_dst_addr(){
+    return proc_request_task.pic_dst_addr;
+}
 
 void clear_RT2BC_buf(){
 	memset(RT2BC_buf,0,32*sizeof(unsigned short));
@@ -16,11 +84,10 @@ void m_sleep(){
 		i=i;
     }
 }
-
 void proc_request_task(int task_type,unsigned char cores,unsigned char ready,int (*send_func)()){
 		//三种request
 	    if(task_type==PROC_TASK_YP||task_type==PROC_TASK_PJ||task_type==PROC_TASK_YS){
-	    	printf("prapare to exec the task,task id:%d...\n",task_type);
+	    	printf("prapare to send request frame,task id:%d...\n",task_type);
 	    	m_sleep();
 	    }
 	    else{
@@ -61,7 +128,7 @@ void proc_request_task(int task_type,unsigned char cores,unsigned char ready,int
 		//序列化完成后之后准备发送
 
 }
-void proc_result_task(int task_type,unsigned char cores,int(*recv_func)(),int (*send_func)()){                  //接收遥控信号并返回结果
+void proc_interact_task(int task_type,unsigned char cores,int(*recv_func)(),int (*send_func)()){                  //接收遥控信号并返回结果
 		if(task_type!=PROC_TASK_YP&&task_type!=PROC_TASK_PJ&&task_type!=PROC_TASK_YS){
 	    	printf("can not exec current task\n");
 	    	return;
@@ -74,7 +141,7 @@ void proc_result_task(int task_type,unsigned char cores,int(*recv_func)(),int (*
 	
 	    command_packet packet;
 		task_request task;
-
+        unsigned int picture_num=0;
 		memset(&packet,0,sizeof(command_packet));
 		memset(&task,0,sizeof(task_request));
 	    unsigned int pic_size[5];//
@@ -109,10 +176,11 @@ void proc_result_task(int task_type,unsigned char cores,int(*recv_func)(),int (*
         //读取packet内的内容,此时的packet的内容为回复request的帧
         copy2task_response((void*)&task_response_t,(void*)&(recv_packet1.buf[0]));
         //判定response内容，准备第二次接收遥控帧
-	if(task_response_t.task_id!=task_type){
-		printf("response packet task_id error,current task_id:%d,packet task_id:%d",task_type,task_response_t.task_id);	
-	}
-        else{	
+	    if(task_response_t.task_id!=task_type){
+		    printf("response packet task_id error,current task_id:%d,packet task_id:%d",task_type,task_response_t.task_id);	
+	    }
+        else{
+        picture_num=task_response_t.number;
 		proc_request_task(task_type,cores,1,send_func);//请求info遥控数据包
         	//clear_BC2RT_buf();
         	//serial_command_packet((unsigned char*)BC2RT_buf,(void*)&packet,(void*)&task,REQUEST_TYPE,task_type);
@@ -155,40 +223,55 @@ void proc_result_task(int task_type,unsigned char cores,int(*recv_func)(),int (*
         		    }
         	}
         	printf("open lvds,task id:%d,picture num:%d\n",task_response_t.task_id,task_response_t.number);
-
-
         	//开启lvds传输图片任务代码段,传入cores和pic_size
-
-
-        	int is_lvds_end=1;
-        	if(is_lvds_end==1){
+            int j=0;
+            for(;j<picture_num;j++){
+        	    int is_lvds_recv_right=lvds_get_data(pic_size[j],recv_buf[j]);
+        	    if(is_lvds_recv_right==1){
         			//回传分析的结果
-					clear_BC2RT_buf();
-					serial_command_packet((unsigned char*)BC2RT_buf,(void*)&packet,(void*)&task,RESULT_TYPE,task_type,cores,0);
-					is_send_right=(*send_func)(1,2,(unsigned char*)BC2RT_buf,32);
-					if(is_send_right==1){
-						printf("send result success,task type:%d\n",task_type);
-					}
-					else{
-						printf("send result fail,task type:%d\n",task_type);
-					}
-
-        	}
-		else{
-        		printf("open lvds fail,task id:%d\n",task_response_t.task_id);
-        	}
+                    printf("接收到了正确的图片数据,图片编号：%d\n",j+1);
+        	    }
+	    	    else{
+        		    printf("使用lvds接受数据错误,图片编号:%d\n",task_response_t.task_id,j+1);
+                    return;
+        	    }   
+            }
+            //准备执行任务，先设置任务属性
+            set_current_task(task_type,picture_num,pic_size);
+            //执行任务，设置结果，回传结果和最终图像
+            ////////////////////////////////////////////
+            //exec task
+            ////////////////////////////////////////////
         }
-
 }
-void proc_main_task(int (*recv_func)(), int (*send_func)()){
+int exec_task(int (*exec_task_func)()){
+        exec_task_func();   
+}
+void proc_result_task(int task_type,unsigned char cores,int (*send_func)()){
+			clear_BC2RT_buf();
+			serial_command_packet((unsigned char*)BC2RT_buf,(void*)&packet,(void*)&task,RESULT_TYPE,task_type,cores,0);
+			is_send_right=(*send_func)(1,2,(unsigned char*)BC2RT_buf,32);
+			if(is_send_right==1){
+					printf("send result success,task type:%d\n",task_type);
+			}
+			else{
+					printf("send result fail,task type:%d\n",task_type);
+			}
+            //清空收图片缓存区
+            clear_recv_buf();
+}
+void proc_main_task(int (*recv_func)(), int (*send_func)(),int (*exec_task_func)()){
       //依次执行三种任务
 	  int cycle=2;
 	  int task_type=PROC_TASK_YP;
 	  while(cycle){
 			printf("prepare to send %d request\n",cycle);
 	  		proc_request_task(task_type,4,1,send_func);
-	  		proc_result_task(task_type,4,recv_func,send_func);
-	  	        cycle--;
+	  		proc_interact_task(task_type,4,recv_func,send_func);
+            if(exec_task(exec_task_func)==1){
+	  		    proc_result_task(task_type,4,send_func);
+            }
+	  	    cycle--;
 			task_type++;
 			m_sleep();
 	  }

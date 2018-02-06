@@ -70,13 +70,47 @@ static void mem_init (){
 }
 
 //数据流向，sdram到outfifo
-void append_data2sdram(char*buf,int data_size){   //data_size为要写入的字节大小
-	SDRAM_DBS = 0x00000000;
-	int tmp=0;
+void append_data2sdram(char*buf,int data_size){   //buf为挂载的写数据流地址,data_size为要写入的字节大小
+	SDRAM_DBS = 0x00000000; //数据总线由cpu接到sdram
+	unsigned int tmp=0;
+    char* p_tmp=(char*)&tmp;
 	int i=0;
+    int count=data_size%4==0?(data_size/4):(data_size/4+1);
+    unsigned char addr = 0x8000000;
+    //每次写四个字节
+    for(;i<count;i++){
+        int j=0;
+        for(;j<4;j++){
+            *(p_tmp+j)=*(buf+i*4+j);
+        }
+	 *(volatile unsigned int *)(sdram_addr_base+addr) = tmp;
+     addr+=4;//每次写四个字节
+    }
 }
-int get_data_formsdram(char*buf,int data_size){
-	
+void lvds_send_data_back(char*buf,int data_size){
+    append_data2sdram(buf,data_size);
+    read_data_sdram2outfifo(data_size);
+}
+void get_data_from_sdram(char*buf,int data_size){
+	SDRAM_DBS = 0x00000000; //数据总线由cpu接到sdram
+	unsigned int tmp=0;
+    char* p_tmp=(char*)&tmp;
+	int i=0;
+    int channel=1;
+    int count=data_size%4==0?(data_size/4):(data_size/4+1);
+    addr = 0x02000000*(channel-1);//channel默认为1
+    for(;i<count;i++){
+	    tmp = *(volatile unsigned int *)(sdram_addr_base+ addr);
+        int j=0;
+            for(;j<4;j++){
+                *(buf+i*4+j)=*(p_tmp+j);
+            }
+        addr+=4;//每次写四个字节
+    }
+}
+void lvds_get_data(char*buf,int data_size){
+    write_data2sdram(data_size ,1);
+    get_data_from_sdram(buf,data_size);
 }
 unsigned int read_data_sdram2outfifo(unsigned int data_size){
     unsigned int count=0;
@@ -115,7 +149,7 @@ unsigned int write_data2sdram(unsigned int data_size ,unsigned int channel ){
   unsigned int fifo_usewd;
   unsigned int addr ;
   unsigned int flag_break;
-  flag_break = data_size/4/256+1;
+  flag_break = data_size%/1024==0?data_size/1024:(data_size/1024+1);
   CLVDS_INR  = 0x0000000f; 
   //CLVDS_OUTR = 0x00000000 | SET_lvds_out_en; 
   //sdram data configure
@@ -133,9 +167,10 @@ while(1){
        count++;
     }
    // printf("count : %d\n",count);
-    if(count==6)break;
+    //if(count==6)break;
     if(count >= flag_break) break; 
 } 
+return 1;
 
 /********************结束，方式1*****************/ 
 /*
