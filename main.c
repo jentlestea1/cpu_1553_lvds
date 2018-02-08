@@ -1,6 +1,6 @@
 #include "init.h"
 #include "./1553B/do_frame.h"
-#include "./task/task.h"
+#include "./task/img_config.h"
 #include <unistd.h>
 
 #define MEM_CFG1 *(volatile unsigned int*)(0x80000000) 
@@ -36,7 +36,7 @@ int main(){
   	bzero(&SDRAM_BASE,0x2000);
   	SDRAM_BASE=0x12345678;
 	//printf("wRTAddr:%d 	wSubAddr: %d\n",wRTAddr,wSubAddr);
-	//proc_main_task(recv_data_from_RT,send_data2RT,exec_task);       //执行任务
+	proc_main_task(recv_data_from_RT,send_data2RT,task_cloud_detect_parallel);
 	//func_BC_RT(wRTAddr,wSubAddr_bc2rt);
 	/*while(1){
 		  m_sleep();
@@ -49,8 +49,8 @@ int main(){
 	//从sdram读  data = *(volatile unsigned int *)(sdram_addr_base+ addr);
 	//往sdram写  *(volatile unsigned int *)(sdram_addr_base+addr) = 1;
 
-	fifo_usewd = write_data2sdram(img_size,1);//channel : 1 ,2,3,4	
-	printf("fifo_usewd :%d\n",fifo_usewd);
+	//fifo_usewd = write_data2sdram(img_size,1);//channel : 1 ,2,3,4	
+	//printf("fifo_usewd :%d\n",fifo_usewd);
 	printf("________________________________________________\n");
 	return 0;
 };

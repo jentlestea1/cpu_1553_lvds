@@ -6,9 +6,9 @@
 static int g_task=PROC_IDE;
 short RT2BC_buf[33]={0};
 short BC2RT_buf[33]={0};
-unsigned char recv_buf[RECV_PIC_MAX_NUM][RECV_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
-unsigned char send_buf[SEND_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
-unsigned int ret_pic_size=0;
+static unsigned char recv_buf[RECV_PIC_MAX_NUM][RECV_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
+static unsigned char send_buf[SEND_BUF_MAX_SIZE]; //用来接收MFC端传过来的图片
+static unsigned int ret_pic_size=0;
 
 struct current_task{
     //每个任务需要用到的几个变量
@@ -222,7 +222,7 @@ void proc_interact_task(int task_type,unsigned char cores,int(*recv_func)(),int 
         	    int is_lvds_recv_right=lvds_get_data(recv_buf[j],pic_size[j]);
         	    if(is_lvds_recv_right==1){
         			//回传分析的结果
-                    printf("接收到了正确的图片数据,图片编号：%d\n",j+1);
+                    printf("接收到了正确的图片数据,已经将图片写入缓存,图片编号：%d\n",j+1);
         	    }
 	    	    else{
         		    printf("使用lvds接受数据错误,图片编号:%d\n",task_response_t.task_id,j+1);
@@ -237,8 +237,8 @@ void proc_interact_task(int task_type,unsigned char cores,int(*recv_func)(),int 
             ////////////////////////////////////////////
         }
 }
-int do_exec_task(int (*exec_task_func)()){
-        exec_task_func();   
+int do_exec_task(int (*exec_task_func)(),int cores){
+        exec_task_func(cores);   
 }
 void proc_result_task(int task_type,unsigned char cores,int (*send_func)()){
 			clear_BC2RT_buf();
@@ -267,21 +267,21 @@ void proc_result_task(int task_type,unsigned char cores,int (*send_func)()){
 }
 void proc_main_task(int (*recv_func)(), int (*send_func)(),int (*exec_task_func)()){
       //依次执行三种任务
-	  int cycle=2;
+	  int cycle=1;
+      int pic_size[4]={100,0,0,0};
 	  int task_type=PROC_TASK_YP;
 	  while(cycle){
 			printf("prepare to send %d request\n",cycle);
 	  		proc_request_task(task_type,4,1,send_func);
-	  		proc_interact_task(task_type,4,recv_func,send_func);
-            if(do_exec_task(exec_task_func)==1){
-	  		    proc_result_task(task_type,4,send_func);
+            set_current_task(1,1,pic_size);
+	  		//proc_interact_task(task_type,4,recv_func,send_func);
+            if(do_exec_task(exec_task_func,4)==1){   //核数为4
+	  		    //proc_result_task(task_type,4,send_func);
             }
 	  	    cycle--;
 			task_type++;
 			m_sleep();
 	  }
-	  
-
-
+	  return;
 }
 

@@ -163,17 +163,17 @@ void serial_command_packet(unsigned char* dst,void* packet,void* task,int type,i
         	case YP_SUBTYPE:
         	{
         		 task_result_t.which_gra_task=1;
-        		 task_result_t.gra_yp=proc_gra_yp;
+        		 task_result_t.cur_gra_task.gra_yp=proc_gra_yp;
         	}
         	case PJ_SUBTYPE:
         	{
 				 task_result_t.which_gra_task=2;
-        		 task_result_t.gra_pj=proc_gra_pj;
+        		 task_result_t.cur_gra_task.gra_pj=proc_gra_pj;
         	}
         	case YS_SUBTYPE:
         	{
 				 task_result_t.which_gra_task=3;
-        		 task_result_t.gra_ys=proc_gra_ys;
+        		 task_result_t.cur_gra_task.gra_ys=proc_gra_ys;
         	}
         	default:
         		break;

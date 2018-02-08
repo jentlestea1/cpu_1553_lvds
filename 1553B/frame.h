@@ -69,7 +69,7 @@ typedef struct task_result{          //结果帧格式
 			struct graph_yp gra_yp;	
 			struct graph_pj gra_pj;	
 			struct graph_ys gra_ys;	
-		};
+		}cur_gra_task;
 }task_result;
 //typedef task_result{
 //		int corestates;
